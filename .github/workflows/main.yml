@@ -7,28 +7,67 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04  # استخدام إصدار أقدم أكثر استقراراً
+    
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
     
-    - name: Install dependencies
+    - name: Free up disk space
       run: |
-        pip install buildozer cython==0.29.33
-        sudo apt-get update
-        sudo apt-get install -y openjdk-17-jdk git zip unzip wget
-        sudo apt-get install -y autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        df -h
     
-    - name: Build APK with Buildozer
-      run: buildozer -v android debug
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          openjdk-11-jdk \
+          git \
+          zip \
+          unzip \
+          wget \
+          autoconf \
+          libtool \
+          pkg-config \
+          zlib1g-dev \
+          libncurses5-dev \
+          libncursesw5-dev \
+          libtinfo5 \
+          cmake \
+          libffi-dev \
+          libssl-dev \
+          python3-pip
+    
+    - name: Install Python dependencies
+      run: |
+        pip install --upgrade pip
+        pip install buildozer==1.5.0
+        pip install cython==0.29.33
+    
+    - name: Build APK with retry
+      run: |
+        buildozer android debug || buildozer android debug -v
+      continue-on-error: false
     
     - name: Upload APK
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v4
+      if: success()
       with:
         name: android-apk
         path: bin/*.apk
         retention-days: 30
+    
+    - name: Upload logs on failure
+      uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: buildozer-logs
+        path: .buildozer/android/platform/build*/
+        retention-days: 7
